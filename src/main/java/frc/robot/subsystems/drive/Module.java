@@ -59,9 +59,6 @@ public class Module {
     io.setTargetSteerPosition(resultAngle);
   }
 
-  // TODO: 'setTargetSteerAngle()' from the original code is never called.  Omitted from this code
-  // as of right now
-
   /**
    * Getting the current swerve module position
    *

@@ -19,7 +19,7 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.math.util.Units;
 
 public class ModuleIOTalonFXPro implements ModuleIO {
-  // TODO: Move module constants
+
   private static final int DRIVE_CURRENT_LIMIT = 35;
   private static final int TURN_CURRENT_LIMIT = 15;
 
@@ -193,7 +193,6 @@ public class ModuleIOTalonFXPro implements ModuleIO {
     turnVelocitySignal = turnEncoder.getVelocity();
 
     // Construct an array of Talon FX status signals
-    // TODO: Why does this have to be of the type `BaseStatusSignal`?
     signals = new BaseStatusSignal[4];
 
     // Assign status signals to the array

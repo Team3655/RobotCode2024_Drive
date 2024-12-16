@@ -23,8 +23,6 @@ public interface ModuleIO {
    */
   default void setTargetSteerPosition(double targetSteerPositionRad) {}
 
-  // TODO: 'setTargetSteerAngle' is not implemented in original code.  Removed for now.
-
   /**
    * Sets the target drive velocity of the swerve drive module
    *
@@ -35,7 +33,7 @@ public interface ModuleIO {
   default void resetToAbsoluteAngle() {}
 
   default double getMaxVelocity() {
-    return Units.feetToMeters(16.4); // TODO: Change where this is held
+    return Units.feetToMeters(16.4); 
   }
 
   default BaseStatusSignal[] getSignals() {

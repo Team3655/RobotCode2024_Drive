@@ -92,7 +92,7 @@ public class DriveSubsystem extends SubsystemBase {
     public OdometryUpdateThread() {
       ArrayList<BaseStatusSignal> signalsList = new ArrayList<>();
       // Visual queue - 4 status signals * 4 swerve modules + 2 from...?
-      // TODO: allsignals....wat
+      // TODO: Replace this update thread with 2024 version
       allSignals = new BaseStatusSignal[(4 * 4) + 2];
 
       // Adds 4 signals from each swerve module to signalsList
@@ -105,7 +105,6 @@ public class DriveSubsystem extends SubsystemBase {
       allSignals = signalsList.toArray(new BaseStatusSignal[0]);
     }
 
-    // TODO: This entire "run" method is a mystery and needs to be dissected
     public void run() {
       for (var signal : allSignals) {
         if (signal instanceof StatusSignal) {

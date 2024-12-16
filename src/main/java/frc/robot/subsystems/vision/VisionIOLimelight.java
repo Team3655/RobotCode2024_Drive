@@ -16,7 +16,6 @@ import java.util.Optional;
 
 public class VisionIOLimelight implements VisionIO {
   // Loading the April Tag field layout for the current game
-  // TODO: Can I make my own tag layout?
   private static final AprilTagFieldLayout TAG_LAYOUT =
       AprilTagFieldLayout.loadField(AprilTagFields.k2024Crescendo);
 
