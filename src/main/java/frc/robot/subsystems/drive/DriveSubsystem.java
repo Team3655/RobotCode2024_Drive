@@ -24,6 +24,11 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
 import lombok.Getter;
 import org.littletonrobotics.junction.Logger;
 
@@ -64,8 +69,6 @@ public class DriveSubsystem extends SubsystemBase {
   /** Same as odometry but with vision measurements */
   @Getter private final SwerveDrivePoseEstimator estimator;
 
-  private final OdometryUpdateThread odometryUpdateThread;
-
   /**
    * The target speed of the entire robot (not just individual modules). We use this object to
    * calculate the target speeds for each individual module
@@ -74,101 +77,9 @@ public class DriveSubsystem extends SubsystemBase {
 
   private boolean shouldUseVisionData = true;
 
-  /**
-   * TODO: Check out 6328:
-   * https://github.com/Mechanical-Advantage/RobotCode2024/blob/main/src/main/java/org/littletonrobotics/frc2024/RobotState.java
-   * instead of the following OdometryUpdateThread
-   */
-  private class OdometryUpdateThread extends Thread {
-    private BaseStatusSignal[] allSignals;
-    public int successfulDataAcquisitions = 0;
-    public int failedDataAcquisitions = 0;
+  public static final Lock odometryLock = new ReentrantLock();
 
-    private LinearFilter lowpass = LinearFilter.movingAverage(50);
-    private double lastTime = 0;
-    private double currentTime = 0;
-    private double averageLoopTime = 0;
-
-    public OdometryUpdateThread() {
-      ArrayList<BaseStatusSignal> signalsList = new ArrayList<>();
-      // Visual queue - 4 status signals * 4 swerve modules + 2 from...?
-      // TODO: Replace this update thread with 2024 version
-      allSignals = new BaseStatusSignal[(4 * 4) + 2];
-
-      // Adds 4 signals from each swerve module to signalsList
-      for (int i = 0; i < 4; i++) {
-        signalsList.addAll(Arrays.asList(swerveModules[i].getSignals()));
-      }
-      // Adds a blank BaseStatusSignal array to the list
-      signalsList.addAll(Arrays.asList(gyroIO.getSignals()));
-      // Adds everything to the array - seems to only be the swerve modules
-      allSignals = signalsList.toArray(new BaseStatusSignal[0]);
-    }
-
-    public void run() {
-      for (var signal : allSignals) {
-        if (signal instanceof StatusSignal) {
-          ((StatusSignal<?>) signal).setUpdateFrequency(250);
-        }
-      }
-      while (true) {
-        var status = BaseStatusSignal.waitForAll(0.1, allSignals);
-        lastTime = currentTime;
-        currentTime = Utils.getCurrentTimeSeconds();
-        // calculate loop time and run it through a lowpass to make it more readable
-        averageLoopTime = lowpass.calculate(currentTime - lastTime);
-        if (status.isOK()) {
-          successfulDataAcquisitions++;
-        } else {
-          failedDataAcquisitions++;
-          continue;
-        }
-
-        synchronized (swerveModules) {
-          synchronized (swerveModulePositions) {
-            /* Now update odometry */
-            for (int i = 0; i < 4; ++i) {
-              swerveModules[i].updateInputs();
-              swerveModulePositions[i] = swerveModules[i].getPosition();
-            }
-          }
-        }
-        // Assume Pideon2 is flat-and-level so latency compensation can be performed
-
-        synchronized (gyroIO) {
-          synchronized (gyroInputs) {
-            gyroIO.updateInputs(gyroInputs);
-          }
-        }
-        synchronized (odometry) {
-          synchronized (swerveModulePositions) {
-            synchronized (gyroInputs) {
-              odometry.update(gyroInputs.yaw, swerveModulePositions);
-            }
-          }
-        }
-        synchronized (estimator) {
-          synchronized (swerveModulePositions) {
-            synchronized (gyroInputs) {
-              estimator.update(gyroInputs.yaw, swerveModulePositions);
-            }
-          }
-        }
-      }
-    }
-
-    public double getAverageLoopTime() {
-      return averageLoopTime;
-    }
-
-    public int getSuccessfulDataAcquisitions() {
-      return successfulDataAcquisitions;
-    }
-
-    public int getFailedDataAcquisitions() {
-      return failedDataAcquisitions;
-    }
-  }
+  public static final Queue<Double> timestampQueue = new ArrayBlockingQueue<>(20);
 
   public DriveSubsystem(
       GyroIO gyroIO,
@@ -269,13 +180,12 @@ public class DriveSubsystem extends SubsystemBase {
             // Increase to trust vision
             // Not used, only a fallback for if the estimation coefficent fails
             VecBuilder.fill(0.5, 0.5, 0.5));
-
-    odometryUpdateThread = new OdometryUpdateThread();
-    odometryUpdateThread.start();
   }
 
   @Override
   public void periodic() {
+    // Update & process inputs
+    odometryLock.lock();
     // Logging the gyro readings.  Goes to AdvantageScope
     Logger.processInputs("Drive/Gryo", gyroInputs);
 
@@ -338,17 +248,6 @@ public class DriveSubsystem extends SubsystemBase {
     synchronized (odometry) {
       Logger.recordOutput("Drive/OdometryPose", estimator.getEstimatedPosition());
     }
-
-    Logger.recordOutput(
-        "Drive/OdometryThread/Average Loop Time", odometryUpdateThread.getAverageLoopTime());
-
-    Logger.recordOutput(
-        "Drive/OdometryThread/Successful Data Acquisitions",
-        odometryUpdateThread.getSuccessfulDataAcquisitions());
-
-    Logger.recordOutput(
-        "Drive/OdometryThread/Failed Data Acquisitions",
-        odometryUpdateThread.getFailedDataAcquisitions());
   }
 
   /**
